@@ -36,28 +36,40 @@ The conductor agent (Claude Code) reads the task and creates a plan:
 
 ### 2. Conductor: Delegate
 
-For each subtask, the conductor invokes the appropriate agent:
-
+For parallel subtasks, create worktrees:
+```bash
+hive ensemble start subtask-a subtask-b
+# Creates .hive/worktrees/subtask-a/ and .hive/worktrees/subtask-b/
 ```
-# Via subagent wrappers (Claude Code specific):
-- Use @gemini-executor for large codebase analysis
-- Use @codex-executor for focused implementation
-- Use @opencode-executor for general tasks
 
-# Via manual handoff (any agent):
-- Create transfer note with specific subtask instructions
-- Human starts the target agent
-- Agent works and creates completion transfer note
-- Human returns to conductor
+Then start each agent in its worktree directory:
+```bash
+# Terminal 1
+cd .hive/worktrees/subtask-a && codex
+
+# Terminal 2
+cd .hive/worktrees/subtask-b && gemini
 ```
+
+For sequential subtasks, use relay handoff:
+```bash
+# Agent A finishes, hand off to Agent B
+hive relay claude gemini
+gemini   # picks up from .hive/transfers/latest.md
+```
+
+Via subagent wrappers (Claude Code specific — stays in one terminal):
+- Use `@gemini-executor` for large codebase analysis
+- Use `@codex-executor` for focused implementation
+- Use `@opencode-executor` for general tasks
 
 ### 3. Conductor: Synthesize
 
 After all subtasks complete:
 
 ```
-1. Review results from each agent/subtask
-2. Integrate the pieces
+1. Merge parallel streams: hive ensemble merge
+2. Review results from each agent/subtask
 3. Run full test suite
 4. Handle any conflicts or gaps
 5. Create final transfer note summarizing the full orchestration
@@ -67,13 +79,13 @@ After all subtasks complete:
 
 ### Fan-Out / Fan-In
 ```
-Conductor → [Agent A, Agent B, Agent C] → Conductor merges
+Conductor → hive ensemble start a b c → agents work in worktrees → hive ensemble merge
 ```
-Best for: independent analysis tasks, parallel implementations on separate branches.
+Best for: independent analysis tasks, parallel implementations on separate modules.
 
 ### Pipeline
 ```
-Conductor → Agent A (analyze) → Agent B (implement) → Agent C (review) → Conductor
+Conductor → Agent A (analyze) → relay → Agent B (implement) → relay → Agent C (review)
 ```
 Best for: tasks that benefit from different perspectives at each stage.
 
@@ -90,9 +102,13 @@ Task: Add user authentication
 
 Conductor (Claude Code) plans:
   1. [Gemini] Analyze existing codebase for auth patterns (large context)
+     → relay handoff, sequential
   2. [Claude] Design auth architecture based on analysis
-  3. [Codex] Implement auth middleware (branch: feat/auth-middleware)
-  4. [Codex] Implement login/signup routes (branch: feat/auth-routes)
+     → sequential
+  3. Parallel phase — hive ensemble start auth-middleware auth-routes:
+     [Codex] cd .hive/worktrees/auth-middleware && implement middleware
+     [Codex] cd .hive/worktrees/auth-routes && implement login/signup
+  4. hive ensemble merge
   5. [Claude] Review, integrate, and test
 ```
 

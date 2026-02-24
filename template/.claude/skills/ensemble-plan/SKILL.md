@@ -31,10 +31,10 @@ Present the plan to the user for approval:
 - [ ] [contract 2]: [description]
 
 ### Parallel Streams
-| Stream | Branch | Agent | Subtask | Depends On |
-|--------|--------|-------|---------|------------|
-| A | stream/[name-a] | [agent] | [description] | contracts |
-| B | stream/[name-b] | [agent] | [description] | contracts |
+| Stream | Worktree | Agent | Subtask | Depends On |
+|--------|----------|-------|---------|------------|
+| A | .hive/worktrees/[name-a] | [agent] | [description] | contracts |
+| B | .hive/worktrees/[name-b] | [agent] | [description] | contracts |
 
 ### Merge Order
 1. stream/[name-a] → main
@@ -48,13 +48,26 @@ Present the plan to the user for approval:
 ### 3. Execute (after user approval)
 
 1. Create and commit shared contracts if any
-2. Create branches:
+2. Create parallel worktrees using the hive CLI:
    ```bash
-   git checkout -b stream/[name-a]
-   git checkout main
-   git checkout -b stream/[name-b]
-   git checkout main
+   hive ensemble start [name-a] [name-b]
    ```
+   This creates separate directories under `.hive/worktrees/` — one per stream,
+   each on its own git branch. Agents can work simultaneously without interference.
 3. Update `.hive/tasks/active.md` with all subtasks
 4. Log the decomposition decision in `.hive/memory/decisions.md`
-5. Show the user the commands to start each agent in separate terminals
+5. Show the user the commands to start each agent:
+   ```
+   # Terminal 1
+   cd .hive/worktrees/[name-a] && [agent-cli]
+
+   # Terminal 2
+   cd .hive/worktrees/[name-b] && [agent-cli]
+   ```
+
+### Important
+
+- **Do NOT use `git checkout` in separate terminals** — that shares the same working directory.
+  `hive ensemble start` creates git worktrees (separate directories) so agents can truly work in parallel.
+- Each worktree has the full repo on its own branch.
+- When done, the user runs `hive ensemble merge` from the project root.

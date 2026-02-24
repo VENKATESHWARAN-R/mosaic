@@ -1,6 +1,6 @@
 # Workflow: Team Parallel (Concurrent Execution)
 
-> Multiple agents work simultaneously on independent subtasks, each on its own branch.
+> Multiple agents work simultaneously on independent subtasks, each in its own worktree.
 > Human decomposes the work upfront and merges when done.
 
 ## When to Use
@@ -14,57 +14,69 @@
 
 - Clear task decomposition with minimal overlap
 - Shared contracts defined upfront (interfaces, types, APIs) to prevent conflicts
-- Separate git branches for each stream
+- Git repository (worktrees require git)
+
+## How It Works
+
+`hive ensemble start` creates **git worktrees** — separate directories, each with a full
+copy of the repo on its own branch. This means two agents can work at the same time in
+different directories without any git conflicts until merge time.
+
+```
+your-project/
+├── .hive/worktrees/
+│   ├── subtask-a/    ← full repo copy, branch: stream/subtask-a
+│   └── subtask-b/    ← full repo copy, branch: stream/subtask-b
+├── src/              ← main branch (untouched while agents work)
+└── ...
+```
+
+**Why not `git checkout` in two terminals?** Because both terminals share the same working
+directory. The second checkout changes the branch for everyone. Worktrees solve this.
 
 ## Steps
 
 ### 1. Human: Plan & Decompose
 
-```
-1. Break the task into independent subtasks
-2. Define shared contracts (interfaces, types, API signatures)
-   - Commit these to main BEFORE branching
-3. Create branches:
-   git checkout -b stream/subtask-a
-   git checkout main
-   git checkout -b stream/subtask-b
-4. Update .hive/tasks/active.md with all subtasks
-5. Document the decomposition in .hive/memory/decisions.md
+```bash
+# Break the task into independent subtasks
+# Define shared contracts (interfaces, types, API signatures)
+# Commit contracts to main BEFORE creating streams
+
+# Create parallel worktrees:
+hive ensemble start subtask-a subtask-b
+
+# Update .hive/tasks/active.md with all subtasks
+# Document the decomposition in .hive/memory/decisions.md
 ```
 
 ### 2. Human: Assign & Launch
 
-```
-Terminal 1 (on stream/subtask-a):
-  $ cd project && git checkout stream/subtask-a
-  $ claude   # or whatever agent
+```bash
+# Terminal 1 — Agent A works in its own directory
+cd .hive/worktrees/subtask-a
+claude   # or whatever agent
 
-Terminal 2 (on stream/subtask-b):
-  $ cd project && git checkout stream/subtask-b
-  $ gemini   # or whatever agent
+# Terminal 2 — Agent B works in its own directory (simultaneously)
+cd .hive/worktrees/subtask-b
+gemini   # or whatever agent
 ```
 
 Each agent:
-```
-1. Read AGENTS.md
-2. Check .hive/tasks/active.md for their assigned subtask
-3. Update .hive/sessions/current.md (note: may conflict — that's OK)
-4. Work on their subtask ONLY
-5. Commit to their branch frequently
-6. Create transfer note when done
-```
+1. Reads `AGENTS.md` (present in the worktree — it's a full repo copy)
+2. Checks `.hive/tasks/active.md` for their assigned subtask
+3. Works on their subtask ONLY
+4. Commits to their branch frequently
+5. Creates transfer note when done
 
-### 3. Human: Monitor & Merge
+### 3. Human: Merge
 
-```
-1. Check progress in each terminal
-2. When all streams complete:
-   git checkout main
-   git merge stream/subtask-a
-   git merge stream/subtask-b
-3. Resolve any conflicts
-4. Run full test suite
-5. Clean up branches
+```bash
+# Return to the project root (NOT a worktree)
+cd /path/to/your-project
+
+# Merge all streams, clean up worktrees and branches
+hive ensemble merge
 ```
 
 ## Shared Contracts Pattern
@@ -73,7 +85,7 @@ To prevent conflicts, define interfaces before branching:
 
 ```
 # Example: Two agents building features that share a data model
-# BEFORE branching, commit:
+# BEFORE creating streams, commit:
 
 # types/user.ts (the contract)
 interface User {
@@ -92,11 +104,12 @@ interface User {
 1. **Never merge without running tests** on the merged result
 2. **Define contracts first** — this is the most common failure point
 3. **Keep subtasks truly independent** — if they touch the same files, use Relay Race instead
-4. **Each agent stays on its branch** — never switch branches mid-session
+4. **Each agent stays in its worktree** — never cd between worktrees mid-session
+5. **Commit before merge** — uncommitted changes in worktrees will block the merge
 
 ## CLI Shortcut
 
 If using Claude Code with MOSAIC skills:
 ```
-/ensemble-plan    # Decompose and create branches
+/ensemble-plan    # Decompose, create worktrees, and assign agents
 ```
