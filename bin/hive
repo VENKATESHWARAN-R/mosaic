@@ -288,32 +288,54 @@ ensemble_start() {
         exit 1
     fi
 
+    local repo_root
+    repo_root=$(git rev-parse --show-toplevel)
     local base_branch
     base_branch=$(git branch --show-current)
+    local worktree_base="$repo_root/.hive/worktrees"
+    mkdir -p "$worktree_base"
+
     info "Creating parallel streams from $base_branch..."
 
     for stream in "$@"; do
         local branch="stream/$stream"
-        git checkout -b "$branch" "$base_branch" 2>/dev/null || {
-            warn "Branch $branch already exists, skipping."
+        local wt_path="$worktree_base/$stream"
+
+        if [[ -d "$wt_path" ]]; then
+            warn "Worktree $wt_path already exists, skipping."
             continue
+        fi
+
+        # Create branch + worktree in one step
+        git worktree add -b "$branch" "$wt_path" "$base_branch" 2>/dev/null || {
+            # Branch may already exist, try without -b
+            git worktree add "$wt_path" "$branch" 2>/dev/null || {
+                warn "Could not create worktree for $stream, skipping."
+                continue
+            }
         }
-        ok "Created branch: $branch"
-        git checkout "$base_branch" &>/dev/null
+        ok "Created: $wt_path (branch: $branch)"
     done
 
     echo ""
     echo -e "${BOLD}Ensemble streams created:${NC}"
-    for stream in "$@"; do
-        echo "  stream/$stream"
-    done
     echo ""
+    echo "  Each stream is a separate directory (git worktree) with its own branch."
+    echo "  Agents can work in parallel without interfering with each other."
+    echo ""
+    for stream in "$@"; do
+        echo "  stream/$stream:"
+        echo "    Path:   $worktree_base/$stream"
+        echo "    Branch: stream/$stream"
+        echo ""
+    done
     echo "  Start agents in separate terminals:"
     for stream in "$@"; do
-        echo "    Terminal: git checkout stream/$stream && <agent-cli>"
+        echo "    cd $worktree_base/$stream && <agent-cli>"
     done
     echo ""
-    echo "  When done: hive ensemble merge"
+    echo "  When done, come back to this directory and run:"
+    echo "    hive ensemble merge"
 }
 
 ensemble_merge() {
@@ -322,12 +344,15 @@ ensemble_merge() {
         exit 1
     fi
 
+    local repo_root
+    repo_root=$(git rev-parse --show-toplevel)
     local base_branch
     base_branch=$(git branch --show-current)
+    local worktree_base="$repo_root/.hive/worktrees"
 
     # Find stream branches
     local streams
-    streams=$(git branch --list 'stream/*' | sed 's/^[* ]*//')
+    streams=$(git branch --list 'stream/*' | sed 's/^[* +]*//')
 
     if [[ -z "$streams" ]]; then
         err "No stream/ branches found."
@@ -357,11 +382,20 @@ ensemble_merge() {
     done <<< "$streams"
 
     echo ""
-    read -rp "Delete stream branches? [Y/n] " answer
+    read -rp "Delete stream branches and worktrees? [Y/n] " answer
     if [[ "${answer:-Y}" =~ ^[Yy]$ ]]; then
         while read -r branch; do
-            git branch -d "$branch" 2>/dev/null && ok "Deleted $branch"
+            local stream_name="${branch#stream/}"
+            local wt_path="$worktree_base/$stream_name"
+            # Remove worktree first (if it exists), then branch
+            if [[ -d "$wt_path" ]]; then
+                git worktree remove "$wt_path" --force 2>/dev/null && ok "Removed worktree: $wt_path"
+            fi
+            git branch -d "$branch" 2>/dev/null && ok "Deleted branch: $branch"
         done <<< "$streams"
+
+        # Clean up empty worktrees dir
+        rmdir "$worktree_base" 2>/dev/null || true
     fi
 
     ok "Ensemble merge complete."
@@ -435,8 +469,8 @@ cmd_help() {
     echo "  init                          Initialize .hive/ in current project"
     echo "  status                        Show current tasks, session, transfers"
     echo "  relay <from> <to>             Prepare relay handoff between agents"
-    echo "  ensemble start <a> <b> [...]  Create branches for parallel streams"
-    echo "  ensemble merge                Merge all stream/ branches"
+    echo "  ensemble start <a> <b> [...]  Create worktrees for parallel streams"
+    echo "  ensemble merge                Merge all stream/ branches + cleanup"
     echo "  roster [list|add]             View or manage agent roster"
     echo "  help                          Show this help message"
     echo ""

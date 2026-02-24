@@ -5,6 +5,9 @@
 # Transfer notes: track the template and archive, but latest.md is ephemeral
 .hive/transfers/latest.md
 
+# Ensemble worktrees are temporary working copies
+.hive/worktrees/
+
 # OS files
 .DS_Store
 Thumbs.db
