@@ -1,0 +1,17 @@
+# MOSAIC Framework - Git Ignore
+# Session state is ephemeral - don't track it
+.hive/sessions/current.md
+
+# Transfer notes: track the template and archive, but latest.md is ephemeral
+.hive/transfers/latest.md
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Editor files
+*.swp
+*.swo
+*~
+.vscode/settings.json
+.idea/

@@ -1,0 +1,88 @@
+# Agent Roster - Available agents and their capabilities
+# Add or remove agents as needed for your setup
+
+agents:
+  claude-code:
+    name: "Claude Code"
+    cli_command: "claude"
+    instruction_files:
+      - "AGENTS.md"
+      - "CLAUDE.md"
+    context_window: 200000
+    strengths:
+      - "Complex reasoning and architecture"
+      - "Multi-file refactoring"
+      - "Code review and debugging"
+      - "Orchestration via subagents"
+      - "Git operations and PR creation"
+    weaknesses:
+      - "Very large codebases (>100k lines without indexing)"
+    best_for:
+      - "Architecture design"
+      - "Complex bug investigation"
+      - "Multi-step refactoring"
+      - "Orchestrating other agents"
+      - "Writing tests"
+
+  codex-cli:
+    name: "Codex CLI"
+    cli_command: "codex"
+    instruction_files:
+      - "AGENTS.md"
+    context_window: 200000
+    strengths:
+      - "Fast implementation"
+      - "Sandbox execution"
+      - "Reads AGENTS.md natively"
+    weaknesses:
+      - "Limited orchestration capabilities"
+    best_for:
+      - "Focused implementation tasks"
+      - "Quick bug fixes"
+      - "Script writing"
+
+  gemini-cli:
+    name: "Gemini CLI"
+    cli_command: "gemini"
+    instruction_files:
+      - "AGENTS.md"
+      - "GEMINI.md"
+    context_window: 1000000
+    strengths:
+      - "Massive context window"
+      - "Large codebase analysis"
+      - "Cross-file pattern recognition"
+    weaknesses:
+      - "May be less precise on small edits"
+    best_for:
+      - "Codebase-wide analysis"
+      - "Large-scale refactoring planning"
+      - "Understanding complex systems"
+      - "Documentation generation"
+
+  opencode:
+    name: "OpenCode"
+    cli_command: "opencode"
+    instruction_files:
+      - "AGENTS.md"
+    context_window: 200000
+    strengths:
+      - "Flexible model selection"
+      - "General-purpose coding"
+    weaknesses:
+      - "Varies by underlying model"
+    best_for:
+      - "General implementation tasks"
+      - "When other agents are unavailable"
+
+# Routing heuristics - which agent to pick for a task type
+routing:
+  architecture: "claude-code"
+  debugging: "claude-code"
+  implementation: "codex-cli"
+  large_codebase_analysis: "gemini-cli"
+  documentation: "gemini-cli"
+  refactoring: "claude-code"
+  quick_fix: "codex-cli"
+  orchestration: "claude-code"
+  default: "claude-code"
